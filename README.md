@@ -8,6 +8,11 @@ The idea is simple: open the chat you want with `/`, switch to fullscreen with `
 mode gives you `hjkl` to move through messages, single-key actions for reply, delete, and file handling, and telescope
 search that works across chats, messages, and senders.
 
+> **Fork notice**: this is a fork of [k4dy/telegramtui](https://github.com/k4dy/telegramtui) with two additions:
+> **notify-send desktop notifications** for incoming messages (see [Notifications](#notifications)) and a **channel/chat
+> deletion** action — press `D` on a hovered chat in the sidebar to remove it from the list while staying subscribed
+> (so channel alerts keep arriving).
+
 ---
 
 ## Screenshots
