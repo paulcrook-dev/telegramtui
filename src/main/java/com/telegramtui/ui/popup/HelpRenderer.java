@@ -17,6 +17,7 @@ final class HelpRenderer {
         {"J / K",               "jump 10 messages",                   ""},
         {"G",                   "jump to newest message",             ""},
         {"Enter",               "open chat / deselect message",       ""},
+        {"D",                   "delete hovered chat from list",      ""},
         {"i",                   "enter insert mode",                  ""},
         {"Esc",                 "exit insert / cancel",               ""},
         {"",                    "",                                    ""},

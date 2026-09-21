@@ -24,6 +24,8 @@ public class SidebarPanel {
 	private int selectedIndex = 0;
 	private int scrollOffset = 0;
 	private ChatModel openedChat = null;
+	private boolean deletePending = false;
+	private ChatModel pendingDeleteChat = null;
 
 	public SidebarPanel(ChatService chatService, FolderService folderService) {
 		this.chatService = chatService;
@@ -99,6 +101,14 @@ public class SidebarPanel {
 				g.putString(x + titleWidth, row, badge);
 			}
 		}
+
+		if (deletePending && pendingDeleteChat != null) {
+			String prompt = "Delete " + pendingDeleteChat.title() + "? (y/n)";
+			String clipped = TextRenderer.clip(prompt, w);
+			g.setBackgroundColor(CatppuccinMocha.SURFACE0);
+			g.setForegroundColor(CatppuccinMocha.RED);
+			g.putString(x, listTop, TextRenderer.padRight(clipped, w));
+		}
 	}
 
 	public ChatModel getOpenedChat() {
@@ -113,6 +123,18 @@ public class SidebarPanel {
 			}
 			return true;
 		}
+
+		// chat delete confirmation: y deletes, anything else cancels
+		if (deletePending) {
+			if (key.getKeyType() == KeyType.Character && key.getCharacter() == 'y'
+					&& pendingDeleteChat != null) {
+				chatService.deleteChat(pendingDeleteChat.id());
+			}
+			deletePending = false;
+			pendingDeleteChat = null;
+			return true;
+		}
+
 		if (key.getKeyType() != KeyType.Character) return false;
 		char c = key.getCharacter();
 
@@ -134,6 +156,15 @@ public class SidebarPanel {
 				return true;
 			}
 			return false;
+		}
+
+		if (c == 'D') {
+			List<ChatModel> chats = chatService.getChatsForList(selectedFolderId);
+			if (!chats.isEmpty() && selectedIndex < chats.size()) {
+				pendingDeleteChat = chats.get(selectedIndex);
+				deletePending = true;
+			}
+			return true;
 		}
 
 		if (c == 'j') {

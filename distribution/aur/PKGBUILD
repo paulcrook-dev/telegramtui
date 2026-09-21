@@ -3,7 +3,7 @@
 # Builds from source against this fork (paulcrook-dev/telegramtui).
 pkgname=telegramtui
 pkgver=1.0.0
-pkgrel=2
+pkgrel=3
 pkgdesc="Terminal Telegram client with a vim spirit (fork with notify-send notifications)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/paulcrook-dev/telegramtui"

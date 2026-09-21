@@ -64,6 +64,16 @@ public class ChatService {
 		}
 	}
 
+	// Removes a chat from the chat list and clears local history for the current user.
+	// The user stays subscribed/member, so channels keep delivering updates (and alerts).
+	public void deleteChat(long chatId) {
+		client.send("{\"@type\":\"deleteChatHistory\",\"chat_id\":" + chatId
+				+ ",\"remove_from_chat_list\":true,\"revoke\":false}", null);
+		// optimistic local removal so the sidebar updates immediately
+		chats.remove(chatId);
+		chatPositions.remove(chatId);
+	}
+
 	// Sets unread count to 0 when a chat is opened (optimistic update)
 	public void markRead(long chatId) {
 		ChatModel existing = chats.get(chatId);

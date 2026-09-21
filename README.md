@@ -178,6 +178,7 @@ TelegramTUI uses vim-style navigation throughout. There are two modes:
 | `J` / `K` | jump 10 rows                          |
 | `G`       | jump to newest message                |
 | `Enter`   | open selected chat / deselect message |
+| `D`       | delete hovered chat from the list (you stay subscribed, so channel alerts keep arriving) |
 
 #### Chat tabs
 
