@@ -5,6 +5,7 @@ import com.telegramtui.model.ChatModel;
 import com.telegramtui.model.MessageModel;
 import com.telegramtui.service.MessageService;
 import com.telegramtui.ui.common.CatppuccinMocha;
+import com.telegramtui.ui.common.TextRenderer;
 
 import java.util.HashMap;
 import java.util.List;
@@ -12,11 +13,14 @@ import java.util.Map;
 
 class ConversationRenderer {
 
+    record RenderResult(int viewportTop, int selectedMsgIndex, int maxViewport) {}
+
     private ConversationRenderer() {}
 
-    static int renderMessages(TextGraphics g, int x, int y, int w, int h,
-                              ChatModel chat, int selectedMsgIndex, int viewportTop,
-                              MessageService messageService) {
+    static RenderResult renderMessages(TextGraphics g, int x, int y, int w, int h,
+                                       ChatModel chat, int selectedMsgIndex, int viewportTop,
+                                       MessageService messageService, int scrollBy,
+                                       boolean autoFollow) {
         g.setBackgroundColor(CatppuccinMocha.BASE);
         g.setForegroundColor(CatppuccinMocha.BASE);
         for (int r = 0; r < h; r++) {
@@ -28,7 +32,7 @@ class ConversationRenderer {
             g.setForegroundColor(CatppuccinMocha.OVERLAY0);
             String msg = "Loading...";
             g.putString(x + Math.max(0, (w - msg.length()) / 2), y + h / 2, msg);
-            return viewportTop;
+            return new RenderResult(viewportTop, selectedMsgIndex, 0);
         }
 
         boolean isGroupChat = chat.chatType() != null
@@ -66,14 +70,50 @@ class ConversationRenderer {
             }
         }
 
-        // scroll viewport so the selected message stays visible
-        // if nothing is selected, stick to the bottom (newest messages)
-        if (selGroupIdx >= 0) {
-            int selTop = cum[selGroupIdx];
-            int selBot = cum[selGroupIdx + 1] - 1;
-            if (selBot < viewportTop) viewportTop = selTop;
-            else if (selTop > viewportTop + h - 1) viewportTop = selBot - h + 1;
-        } else {
+        if (scrollBy != 0) {
+            // cursor-anchored scroll: move the cursor by scrollBy messages and slide
+            // the content so the cursor stays at the same screen row
+            int effectiveCursorIdx = selectedMsgIndex < 0 ? messages.size() - 1 : selectedMsgIndex;
+            int newCursorIdx = Math.max(0, Math.min(messages.size() - 1,
+                    effectiveCursorIdx - scrollBy));
+
+            int[] oldRows = findMessageRows(messages, groups, cum, effectiveCursorIdx, w, msgById);
+            int[] newRows = findMessageRows(messages, groups, cum, newCursorIdx, w, msgById);
+
+            int anchorRow = oldRows != null ? oldRows[0] - viewportTop : 0;
+            if (newRows != null) viewportTop = newRows[0] - anchorRow;
+
+            selectedMsgIndex = newCursorIdx;
+
+            // relocate the selected group for drawing
+            selGroupIdx = -1;
+            selPosInGroup = -1;
+            int count = 0;
+            for (int i = 0; i < groups.size(); i++) {
+                int groupSize = groups.get(i).size();
+                if (selectedMsgIndex < count + groupSize) {
+                    selGroupIdx = i;
+                    selPosInGroup = selectedMsgIndex - count;
+                    break;
+                }
+                count += groupSize;
+            }
+
+            // safety net: keep the selected message fully visible at viewport edges
+            if (newRows != null) {
+                if (newRows[0] < viewportTop) viewportTop = newRows[0];
+                else if (newRows[1] > viewportTop + h - 1) viewportTop = newRows[1] - h + 1;
+            }
+        } else if (selGroupIdx >= 0) {
+            // scroll viewport so the selected message stays visible
+            int[] selRows = messageRowRange(groups.get(selGroupIdx), selPosInGroup,
+                    cum[selGroupIdx], w, msgById);
+            if (selRows != null) {
+                if (selRows[0] < viewportTop) viewportTop = selRows[0];
+                else if (selRows[1] > viewportTop + h - 1) viewportTop = selRows[1] - h + 1;
+            }
+        } else if (autoFollow) {
+            // nothing selected and auto-following: stick to the newest messages
             viewportTop = maxViewport;
         }
         viewportTop = Math.max(0, Math.min(maxViewport, viewportTop));
@@ -89,7 +129,42 @@ class ConversationRenderer {
                     i == selGroupIdx ? selPosInGroup : -1,
                     y, y + h - 1, msgById);
         }
-        return viewportTop;
+        return new RenderResult(viewportTop, selectedMsgIndex, maxViewport);
+    }
+
+    // content-space {top, bottom} rows of the message at msgIdx, mirroring the row
+    // accounting in MessageRenderer.groupHeight
+    private static int[] findMessageRows(List<MessageModel> messages,
+            List<List<MessageModel>> groups, int[] cum, int msgIdx, int panelWidth,
+            Map<Long, MessageModel> msgById) {
+        if (msgIdx < 0 || msgIdx >= messages.size()) return null;
+        int count = 0;
+        for (int i = 0; i < groups.size(); i++) {
+            int groupSize = groups.get(i).size();
+            if (msgIdx < count + groupSize) {
+                return messageRowRange(groups.get(i), msgIdx - count, cum[i], panelWidth, msgById);
+            }
+            count += groupSize;
+        }
+        return null;
+    }
+
+    // content-space {top, bottom} rows of the message at msgPos within a group,
+    // mirroring the row accounting in MessageRenderer.groupHeight
+    private static int[] messageRowRange(List<MessageModel> group, int msgPos, int groupTop,
+            int panelWidth, Map<Long, MessageModel> msgById) {
+        boolean isOutgoing = group.get(0).isOutgoing();
+        int wrapWidth = MessageRenderer.textWrapWidth(isOutgoing, panelWidth);
+        int row = groupTop + 2; // top margin row + name/timestamp row
+        for (int i = 0; i < group.size(); i++) {
+            if (i > 0) row++; // blank gap row between messages
+            int start = row;
+            row += MessageRenderer.blockHeight(group.get(i), wrapWidth, msgById);
+            if (i == msgPos) {
+                return new int[]{start, row - 1};
+            }
+        }
+        return null;
     }
 
     static void renderLoading(TextGraphics g, int x, int y, int w, int h) {

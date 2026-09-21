@@ -26,6 +26,10 @@ public class ConversationPanel {
     private int selectedMsgIndex = -1;
     private int viewportTop = 0;
     private long pendingJumpMessageId = 0;
+    // anchored scrolling: accumulate pending scroll steps here, consume in render()
+    private int scrollBy = 0;
+    // when true and nothing is selected the viewport sticks to the newest messages
+    private boolean autoFollow = true;
 
     // url picker overlay state
     private boolean urlPickerActive = false;
@@ -49,6 +53,8 @@ public class ConversationPanel {
         chatService.markRead(chat.id());
         selectedMsgIndex = -1;
         viewportTop = Integer.MAX_VALUE / 2;
+        autoFollow = true;
+        scrollBy = 0;
         boolean isNew = tabBar.openChat(chat);
         if (isNew) {
             messageService.loadMessages(chat.id());
@@ -65,6 +71,7 @@ public class ConversationPanel {
 
     // scrolls to and selects a specific message — loads history around it if not cached yet
     public void jumpToMessage(long msgId) {
+        autoFollow = false;
         pendingJumpMessageId = msgId;
         tryApplyPendingJump();
         if (pendingJumpMessageId != 0) {
@@ -131,7 +138,12 @@ public class ConversationPanel {
 
         if (inputBuffer.isInInsertMode()) {
             MessageInputBuffer.Result result = inputBuffer.handleInsertKey(key, chat);
-            if (result == MessageInputBuffer.Result.SENT) selectedMsgIndex = -1;
+            if (result == MessageInputBuffer.Result.SENT) {
+                selectedMsgIndex = -1;
+                viewportTop = Integer.MAX_VALUE / 2;
+                autoFollow = true;
+                scrollBy = 0;
+            }
             return true;
         }
 
@@ -144,19 +156,15 @@ public class ConversationPanel {
         if (key.getKeyType() == KeyType.Character) {
             char c = key.getCharacter();
 
-            // j/k navigate messages, J/K jump by 10
+            // j/k navigate messages, J/K jump by 10 (accumulated so rapid presses
+            // all count when the next render consumes them)
             if (c == 'j' || c == 'k' || c == 'J' || c == 'K') {
                 if (chat != null) {
                     List<MessageModel> msgs = messageService.getMessages(chat.id());
                     if (!msgs.isEmpty()) {
-                        if (selectedMsgIndex < 0) {
-                            selectedMsgIndex = msgs.size() - 1;
-                        } else {
-                            if (c == 'j') selectedMsgIndex = Math.min(msgs.size() - 1, selectedMsgIndex + 1);
-                            else if (c == 'k') selectedMsgIndex = Math.max(0, selectedMsgIndex - 1);
-                            else if (c == 'J') selectedMsgIndex = Math.min(msgs.size() - 1, selectedMsgIndex + 10);
-                            else selectedMsgIndex = Math.max(0, selectedMsgIndex - 10);
-                        }
+                        if (c == 'j' || c == 'J') scrollBy -= (c == 'J') ? 10 : 1;
+                        else scrollBy += (c == 'K') ? 10 : 1;
+                        autoFollow = false;
                     }
                 }
                 return true;
@@ -240,6 +248,8 @@ public class ConversationPanel {
             if (c == 'G') {
                 selectedMsgIndex = -1;
                 viewportTop = Integer.MAX_VALUE / 2;
+                autoFollow = true;
+                scrollBy = 0;
                 return true;
             }
 
@@ -286,9 +296,21 @@ public class ConversationPanel {
         int messagesTop = y;
         int messagesHeight = separatorRow - messagesTop;
 
+        int maxViewport = 0;
+        if (messageService.isLoading(chat.id())) {
+            ConversationRenderer.renderLoading(g, x, messagesTop, w, messagesHeight);
+        } else {
+            ConversationRenderer.RenderResult result = ConversationRenderer.renderMessages(g, x,
+                    messagesTop, w, messagesHeight, chat, selectedMsgIndex, viewportTop,
+                    messageService, scrollBy, autoFollow);
+            viewportTop = result.viewportTop();
+            selectedMsgIndex = result.selectedMsgIndex();
+            maxViewport = result.maxViewport();
+            scrollBy = 0;
+        }
+
         // yellow separator means there are newer messages below the current view
-        List<MessageModel> msgsForSep = messageService.getMessages(chat.id());
-        boolean hasNewerBelow = selectedMsgIndex >= 0 && selectedMsgIndex < msgsForSep.size() - 1;
+        boolean hasNewerBelow = viewportTop < maxViewport;
         g.setBackgroundColor(CatppuccinMocha.BASE);
         g.setForegroundColor(hasNewerBelow ? CatppuccinMocha.YELLOW : CatppuccinMocha.SURFACE2);
         for (int col = x; col < x + w; col++) {
@@ -297,13 +319,6 @@ public class ConversationPanel {
 
         inputBuffer.renderReplyContext(g, x, separatorRow + 1, w);
         inputBuffer.renderInput(g, x, inputTop, w, inputLines, inputHeight, hintText);
-
-        if (messageService.isLoading(chat.id())) {
-            ConversationRenderer.renderLoading(g, x, messagesTop, w, messagesHeight);
-        } else {
-            viewportTop = ConversationRenderer.renderMessages(g, x, messagesTop, w, messagesHeight,
-                    chat, selectedMsgIndex, viewportTop, messageService);
-        }
 
         // url picker floats on top of everything else
         if (urlPickerActive && !urlPickerList.isEmpty()) {
@@ -320,6 +335,7 @@ public class ConversationPanel {
             if (msgs.get(i).id() == pendingJumpMessageId) {
                 selectedMsgIndex = i;
                 viewportTop = Integer.MAX_VALUE / 2;
+                autoFollow = false;
                 pendingJumpMessageId = 0;
                 return;
             }
