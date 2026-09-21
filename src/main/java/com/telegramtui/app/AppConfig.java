@@ -18,6 +18,7 @@ public class AppConfig {
 
 	private final int apiId;
 	private final String apiHash;
+	private final boolean notificationsEnabled;
 
 	public AppConfig() {
 		Properties props = new Properties();
@@ -43,6 +44,8 @@ public class AppConfig {
 		String apiIdStr = props.getProperty("api.id", "").trim();
 		this.apiId = apiIdStr.isEmpty() ? 0 : Integer.parseInt(apiIdStr);
 		this.apiHash = props.getProperty("api.hash", "").trim();
+		String notifEnabled = props.getProperty("notifications.enabled", "true").trim();
+		this.notificationsEnabled = Boolean.parseBoolean(notifEnabled);
 		if (apiId == 0 || apiHash.isEmpty()) {
 			printSetupInstructions();
 			throw new IllegalStateException("api.id or api.hash not configured");
@@ -67,5 +70,9 @@ public class AppConfig {
 
 	public String getApiHash() {
 		return apiHash;
+	}
+
+	public boolean isNotificationsEnabled() {
+		return notificationsEnabled;
 	}
 }

@@ -4,6 +4,7 @@ import com.telegramtui.service.ChatService;
 import com.telegramtui.service.FileService;
 import com.telegramtui.service.FolderService;
 import com.telegramtui.service.MessageService;
+import com.telegramtui.service.NotificationService;
 import com.telegramtui.telegram.NativeLibLoader;
 import com.telegramtui.telegram.TelegramClient;
 import com.telegramtui.ui.layout.AuthScreen;
@@ -20,6 +21,9 @@ public class App {
 		FolderService folderService = new FolderService(telegramClient);
 		MessageService messageService = new MessageService(telegramClient);
 		FileService fileService = new FileService(telegramClient);
+		NotificationService notificationService =
+				new NotificationService(config.isNotificationsEnabled(), chatService);
+		messageService.setNotificationService(notificationService);
 		telegramClient.getUpdateHandler().setMessageService(messageService);
 		telegramClient.getUpdateHandler().setChatService(chatService);
 		telegramClient.getUpdateHandler().setFolderService(folderService);

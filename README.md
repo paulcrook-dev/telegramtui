@@ -251,6 +251,15 @@ api.id=YOUR_API_ID
 api.hash=YOUR_API_HASH
 ```
 
+### Notifications
+
+Incoming messages (from chats that aren't muted in Telegram) trigger a desktop notification via
+`notify-send`. To disable, set the following in `~/.telegramtui/config.properties`:
+
+```properties
+notifications.enabled=false
+```
+
 ---
 
 ## Architecture

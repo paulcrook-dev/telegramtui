@@ -34,10 +34,15 @@ public class MessageService {
 
     private final ConcurrentHashMap<Long, List<MessageModel>> messageCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, AtomicInteger> retryCount = new ConcurrentHashMap<>();
+    private volatile NotificationService notificationService;
 
     public MessageService(TelegramClient client) {
         this.client = client;
         this.searchService = new MessageSearchService(client, parser, version, messageCache);
+    }
+
+    public void setNotificationService(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     public void loadMessages(long chatId) {
@@ -230,6 +235,10 @@ public class MessageService {
         long chatId = msg.get("chat_id").getAsLong();
         MessageModel m = parser.parseMessage(msg);
         if (m == null) return;
+        NotificationService ns = notificationService;
+        if (ns != null) {
+            ns.notifyNewMessage(m);
+        }
         List<MessageModel> cached = messageCache.get(chatId);
         if (cached == null) {
             cached = Collections.synchronizedList(new ArrayList<>());
